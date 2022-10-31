@@ -1,19 +1,21 @@
 ﻿using ConsoleApp4.OpenGL;
 using ConsoleApp4.OpenGL.lights;
 using ConsoleApp4.Resouces.models;
+using GameEngine.OpenGL;
+using GameEngine.OpenGL.lights;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-
 namespace ConsoleApp4
 {
     public sealed class Core
     {
         public static Stopwatch stopwatch { get; private set; }
         public double time;
-        public static GLWindow renderer { get; private set; }
+        public static double deltaTime;
+        public static GLWindow window { get; private set; }
         public static KeyboardState keyboardState { get; set; }
         public static MouseState mouseState { get; set; }
         public static bool IsActive = true;
@@ -22,7 +24,7 @@ namespace ConsoleApp4
         public void Init()
         {
             //initializing components
-            renderer = new GLWindow();
+            window = new GLWindow();
             stopwatch = new Stopwatch();
             stopwatch.Start();
 
@@ -42,64 +44,92 @@ namespace ConsoleApp4
 
         private void Run()
         {
+
             GLCamera cam = new GLCamera(90f);
             cam.Position.Y = 0.2f;
 
             RawMesh mesh = new RawMesh()
             {
-                vertPos = renderer.verticesdata,
+                vertPos = window.verticesdata,
                 vertTex = texCoords,
                 vertNorm = normals,
 
-                triangles = renderer.triangles,
+                triangles = window.triangles,
                 scale = new Vector3(6f, 0.1f, 6f),
                 material = new Material
                 {
                     specular = new Vector3(1.0f),
                     diffuse = new Vector3(1.0f),
                     ambient = new Vector3(0.3f),
-                    shininess = 32f,
+                    shininess = 8f,
                 },
             };
 
-            
+
 
             PointLight pointLight = new PointLight()
             {
-                position = new Vector3(0,1f,0),
+                position = new Vector3(0, 1f, 3f),
                 ambient = new Vector3(0.0f),
                 diffuse = Vector3.One,
                 specular = Vector3.One,
-                fallOff = 1.5f,
+                fallOff = 1.0f,
             };
 
             PointLight pointLight2 = new PointLight()
             {
                 position = new Vector3(2f, 1f, 2),
                 ambient = new Vector3(0.0f),
-                diffuse = new Vector3(1.0f,0.4f,0.4f),
-                specular = Vector3.One,
-                fallOff = 1.5f,
+                diffuse = new Vector3(0.0f, 1.0f, 0.4f),
+                specular = new Vector3(0.0f, 1.0f, 0.4f),
+                fallOff = 1.0f,
             };
-            List<PointLight> pointLights = new List<PointLight>();
-            pointLights.Add(pointLight);
-            pointLights.Add(pointLight2);
 
+            SpotLight spotLight = new SpotLight()
+            {
+                position = new Vector3(1f, 2f, -2f),
+                direction = new Vector3(0, -1f, 0.4f),
+                ambient = new Vector3(0.3f),
+                diffuse = new Vector3(1.0f, 0.4f, 0.4f),
+                specular = Vector3.One,
+                fallOff = 1.0f,
+                cutOff = (float)Math.Cos(MathHelper.DegreesToRadians(30f)),
+                outerCutOff = (float)Math.Cos(MathHelper.DegreesToRadians(50f)),
+            };
+
+            DirectionalLight directionalLight = new DirectionalLight()
+            {
+                direction = new Vector3(0f, 1f, 0.5f),
+                ambient = new Vector3(0.0f),
+                diffuse = new Vector3(0.0f, 0.4f, 0.4f),
+                specular = new Vector3(0.0f, 0.4f, 0.4f),
+
+            };
+            LightList lights = new LightList();
+            lights.pointLights = new PointLight[] { pointLight, pointLight2 };
+            lights.spotLights = new SpotLight[] { spotLight };
+            lights.directionalLights = new DirectionalLight[] { };// {directionalLight };
+
+
+
+           
 
             while (IsActive)
             {
                 time = stopwatch.Elapsed.TotalMilliseconds;
 
                 //render
-                renderer.renderQueue.Enqueue(mesh);
+                window.renderQueue.Enqueue(mesh);
                 //renderer.renderQueue.Enqueue(light);
 
-                renderer.Update(cam,pointLights);
+                window.Update(cam,lights);
 
                 //update
                 mesh.rot.Y += 0.1f;
                 mesh.pos.X = (float)Math.Sin(time/1000f);
                 //mesh.pos.Y += 0.001f;
+
+                Console.WriteLine(mouseState.Position);
 
                 Vector3 front = new Vector3((float)Math.Cos(MathHelper.DegreesToRadians(cam.Rotation.Y)), 0, (float)Math.Sin(MathHelper.DegreesToRadians(cam.Rotation.Y))) * 0.01f;
                 Vector3 right = Vector3.Cross(front, Vector3.UnitY);
@@ -154,7 +184,9 @@ namespace ConsoleApp4
                 }
 
                 double newTime = stopwatch.Elapsed.TotalMilliseconds - time;
-                renderer.window.Title = "FPS: " + (1d / newTime * 1000).ToString();
+                deltaTime = newTime;
+                double newfps = 1d / newTime * 1000;
+                window.window.Title = "FPS: " + newfps;
             }
         }
 

@@ -7,6 +7,7 @@ namespace ConsoleApp4.OpenGL
     {
         public Vector3 Position;
         public Vector3 Rotation; //pitch //yaw //roll
+        public Vector3 lookDir;
         float fov;
         public GLCamera(float fov)
         {
@@ -19,7 +20,6 @@ namespace ConsoleApp4.OpenGL
         public Matrix4 GetViewMatrix()
         {
             Rotation.X = Math.Clamp(Rotation.X, -89.99f, 89.99f);
-            Vector3 lookDir = Vector3.Zero;
             lookDir.X = (float)Math.Cos(MathHelper.DegreesToRadians(Rotation.X)) * (float)Math.Cos(MathHelper.DegreesToRadians(Rotation.Y));
             lookDir.Y = (float)Math.Sin(MathHelper.DegreesToRadians(Rotation.X));
             lookDir.Z = (float)Math.Cos(MathHelper.DegreesToRadians(Rotation.X)) * (float)Math.Sin(MathHelper.DegreesToRadians(Rotation.Y));

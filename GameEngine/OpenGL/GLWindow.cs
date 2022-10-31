@@ -1,4 +1,8 @@
 ﻿using ConsoleApp4.OpenGL.lights;
+using GameEngine.GUI;
+using GameEngine.OpenGL;
+using GameEngine.OpenGL.lights;
+using ImGuiNET;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Desktop;
@@ -84,10 +88,13 @@ namespace ConsoleApp4.OpenGL
         };
         Vector3 lightPos = new Vector3(1.0f, 0.2f, 2f);
 
+
         int vbo, ebo, vao;
         GLTexture texture1;
         GLShader shader;
         public Queue<RawMesh> renderQueue;
+
+        GuiSystem guiSystem;
         public GLWindow()
         {
             renderQueue = new Queue<RawMesh>();
@@ -98,24 +105,33 @@ namespace ConsoleApp4.OpenGL
             };
             window = new NativeWindow(setting);
             //window.WindowState = OpenTK.Windowing.Common.WindowState.Fullscreen; window.Size = new Vector2i(1920,1080); GL.Viewport(0,0,1920,1080);
-            window.CursorState = OpenTK.Windowing.Common.CursorState.Grabbed;
+           // window.CursorState = OpenTK.Windowing.Common.CursorState.Grabbed;
             window.Resize += Window_Resize;
             window.Closing += Window_Closing;
-            GL.Enable(EnableCap.CullFace);
+            window.TextInput += Window_TextInput;
+           // GL.Enable(EnableCap.CullFace);
             GL.Enable(EnableCap.DepthTest);
 
+            guiSystem = new GuiSystem();
+
+            //setting main buffers
             vbo = GL.GenBuffer();
             ebo = GL.GenBuffer();
             vao = GL.GenVertexArray();
-
             GL.BindVertexArray(vao);
             GL.BindBuffer(BufferTarget.ArrayBuffer, vbo);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, ebo);
 
-            shader = new GLShader("C:/Users/a/source/repos/ConsoleApp4/ConsoleApp4/OpenGL/shader/vertex.vert", "C:/Users/a/source/repos/ConsoleApp4/ConsoleApp4/OpenGL/shader/fragment.frag");
+            shader = new GLShader(@"C:\Users\a\Documents\GitHub\OpenGL-Project\GameEngine\OpenGL\shader\vertex.vert",
+                @"C:\Users\a\Documents\GitHub\OpenGL-Project\GameEngine\OpenGL\shader\fragment.frag");
 
-            texture1 = new GLTexture("C:/Users/a/source/repos/ConsoleApp4/ConsoleApp4/OpenGL/Textures/wall.png");
+            texture1 = new GLTexture("C:/Users/a/source/repos/ConsoleApp4/ConsoleApp4/OpenGL/Textures/test.png");
             texture1.Use(TextureUnit.Texture0);
+        }
+
+        private void Window_TextInput(OpenTK.Windowing.Common.TextInputEventArgs obj)
+        {
+            guiSystem.TextInput((char)obj.Unicode);
         }
 
         private void Window_Closing(System.ComponentModel.CancelEventArgs obj)
@@ -130,7 +146,7 @@ namespace ConsoleApp4.OpenGL
             Core.IsActive = false;
         }
 
-        public void Update(GLCamera camera,List<PointLight> pointLights)
+        public void Update(GLCamera camera,LightList lights)
         {
             window.ProcessEvents();
             Core.keyboardState = window.KeyboardState; //pass keyboard state to Core
@@ -138,7 +154,10 @@ namespace ConsoleApp4.OpenGL
             //clear screen
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             GL.ClearColor(0.5f, 0.5f, 0.8f, 1.0f);
-            Draw(camera,pointLights);
+           
+
+            Draw(camera,lights);
+            DrawGUI();
             renderQueue.Clear();
             //show next frame
             window.Context.SwapBuffers();
@@ -149,9 +168,26 @@ namespace ConsoleApp4.OpenGL
         private void Window_Resize(OpenTK.Windowing.Common.ResizeEventArgs e)
         {
             GL.Viewport(0, 0, window.Size.X, window.Size.Y);
+            guiSystem.WindowResize(window.Size.X, window.Size.Y);
         }
 
-        void Draw(GLCamera camera,List<PointLight> pointLights)
+        void DrawGUI() 
+        {
+            GL.Disable(EnableCap.DepthTest);
+
+            guiSystem.controller.Update(window,(float)Core.deltaTime);
+            //guiSystem.Update(window, (float)Core.deltaTime);
+
+            //ImGui.ShowDemoWindow();
+
+            guiSystem.Render();
+
+            ImGuiController.CheckGLError("End of frame");
+
+            GL.Enable(EnableCap.DepthTest);
+        }
+
+        void Draw(GLCamera camera,LightList lights)
         {
             foreach (RawMesh mesh in renderQueue)
             {
@@ -179,6 +215,7 @@ namespace ConsoleApp4.OpenGL
 
                
                 shader.Use();
+                texture1.Use(TextureUnit.Texture0);
 
                 //light properties
                 int lightPosLoc = GL.GetUniformLocation(shader.Handle, "lightPos");
@@ -203,17 +240,37 @@ namespace ConsoleApp4.OpenGL
                 shader.SetVector3("material.specular", mesh.material.specular);
                 shader.SetFloat("material.shininess", mesh.material.shininess);
 
-
-                //lighting data
-                for (int i = 0; i < pointLights.Count;i++) 
+                //dir light
+                for (int i = 0; i < lights.directionalLights.Length; i++)
                 {
-                    shader.SetVector3("pointLights[" + i + "].position",pointLights.ElementAt(i).position);
-                    shader.SetVector3("pointLights[" + i + "].ambient", pointLights.ElementAt(i).ambient);
-                    shader.SetVector3("pointLights[" + i + "].diffuse", pointLights.ElementAt(i).diffuse);
-                    shader.SetVector3("pointLights[" + i + "].specular", pointLights.ElementAt(i).specular);
-                    shader.SetFloat("pointLights[" + i + "].fallOff", pointLights.ElementAt(i).fallOff);
+                    shader.SetVector3("dirLights.direction", lights.directionalLights.ElementAt(i).direction);
+                    shader.SetVector3("dirLights.ambient", lights.directionalLights.ElementAt(i).ambient);
+                    shader.SetVector3("dirLights.diffuse", lights.directionalLights.ElementAt(i).diffuse);
+                    shader.SetVector3("dirLights.specular", lights.directionalLights.ElementAt(i).specular);
                 }
-                shader.SetInt("pointLightsCount", pointLights.Count);
+                //point lights
+                for (int i = 0; i < lights.pointLights.Length;i++) 
+                {
+                    shader.SetVector3("pointLights[" + i + "].position", lights.pointLights.ElementAt(i).position);
+                    shader.SetVector3("pointLights[" + i + "].ambient", lights.pointLights.ElementAt(i).ambient);
+                    shader.SetVector3("pointLights[" + i + "].diffuse", lights.pointLights.ElementAt(i).diffuse);
+                    shader.SetVector3("pointLights[" + i + "].specular", lights.pointLights.ElementAt(i).specular);
+                    shader.SetFloat("pointLights[" + i + "].fallOff", lights.pointLights.ElementAt(i).fallOff);
+                }
+
+                //spot lights
+                for (int i = 0; i < lights.spotLights.Length; i++)
+                {
+                    shader.SetVector3("spotLights[" + i + "].position", lights.spotLights.ElementAt(i).position);
+                    shader.SetVector3("spotLights[" + i + "].ambient", lights.spotLights.ElementAt(i).ambient);
+                    shader.SetVector3("spotLights[" + i + "].diffuse", lights.spotLights.ElementAt(i).diffuse);
+                    shader.SetVector3("spotLights[" + i + "].specular", lights.spotLights.ElementAt(i).specular);
+                    shader.SetVector3("spotLights[" + i + "].direction", lights.spotLights.ElementAt(i).direction);
+                    shader.SetFloat("spotLights[" + i + "].fallOff", lights.spotLights.ElementAt(i).fallOff);
+                    shader.SetFloat("spotLights[" + i + "].cutOff", lights.spotLights.ElementAt(i).cutOff);
+                    shader.SetFloat("spotLights[" + i + "].outerCutOff", lights.spotLights.ElementAt(i).outerCutOff);
+
+                }
 
                 //mvp matrices
                 shader.SetMatrix4("model", model);
